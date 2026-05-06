@@ -1,1 +1,339 @@
-1
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>附近汽修店</title>
+    <style>
+        html, body, #container {
+            width: 100%; height: 100%; margin: 0; padding: 0;
+        }
+        .control-bar {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: white;
+            border-radius: 30px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+            padding: 10px 12px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            max-width: 95vw;
+        }
+        .btn-group {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+        .btn-group button {
+            padding: 6px 14px;
+            border: 1px solid #ccc;
+            background: white;
+            border-radius: 20px;
+            font-size: 14px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn-group button.active {
+            background: #d32f2f;
+            color: white;
+            border-color: #d32f2f;
+        }
+        .search-row {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex: 1;
+            min-width: 200px;
+            flex-wrap: wrap;
+        }
+        .keyword-input {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex: 2;
+            min-width: 150px;
+        }
+        .keyword-input input {
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-size: 14px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .address-input {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex: 1;
+            min-width: 130px;
+        }
+        .address-input input {
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-size: 14px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .address-input button, .keyword-input button {
+            background: #d32f2f;
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 14px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .status-tag {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+
+    <div class="control-bar" id="controlBar">
+        <div class="btn-group">
+            <button id="btn-5km" onclick="changeDistance(5000)">5 km</button>
+            <button id="btn-10km" onclick="changeDistance(10000)" class="active">10 km</button>
+            <button id="btn-15km" onclick="changeDistance(15000)">15 km</button>
+            <button id="btn-20km" onclick="changeDistance(20000)">20 km</button>
+        </div>
+        <div class="search-row">
+            <div class="keyword-input">
+                <input type="text" id="keywordInput" placeholder="自定义关键词" value="汽车维修|修车|汽车保养|汽车美容|汽修|洗车|轮胎|汽车改装|4S店|汽车快修|汽车空调|汽车电路" />
+                <button onclick="applyKeywordSearch()">搜</button>
+            </div>
+            <div class="address-input">
+                <input type="text" id="addressInput" placeholder="输入地址" />
+                <button onclick="searchByAddress()">跳转</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="status-tag" id="statusTag">正在定位...</div>
+
+    <script src="https://webapi.amap.com/maps?v=2.0&key=629ce3fb2c7341fe33f9aa1491a3cf0d&plugin=AMap.PlaceSearch,AMap.Geolocation,AMap.Geocoder"></script>
+    <script>
+        let map, circle, currentMarker, placeSearch, geocoder;
+        let markers = [];
+        let currentDistance = 10000; // 默认10km
+        let currentLocation = null;
+        let currentKeywords = '汽车维修|修车|汽车保养|汽车美容|汽修|洗车|轮胎|汽车改装|4S店|汽车快修|汽车空调|汽车电路';
+
+        function initMap() {
+            map = new AMap.Map('container', {
+                zoom: 13,
+                center: [116.397428, 39.90923]
+            });
+
+            AMap.plugin(['AMap.PlaceSearch', 'AMap.Geolocation', 'AMap.Geocoder'], () => {
+                placeSearch = new AMap.PlaceSearch({
+                    type: '010100|010101|010102|170000|060000|080000|160000|010103|990000',
+                    pageSize: 50,
+                    extensions: 'all'
+                });
+                geocoder = new AMap.Geocoder();
+                locateUserEnhanced();
+            });
+        }
+
+        function locateUserEnhanced() {
+            const geolocation = new AMap.Geolocation({
+                enableHighAccuracy: true,
+                timeout: 8000,
+                noIpLocate: 0,
+                noGeoLocation: 0,
+                GeoLocationFirst: true
+            });
+
+            geolocation.getCurrentPosition((status, result) => {
+                console.log('高德定位状态:', status, result);
+                if (status === 'complete' && result.position) {
+                    const loc = [result.position.lng, result.position.lat];
+                    updateLocation(loc);
+                    setStatus(`定位成功`);
+                    searchAndDisplay();
+                } else if (result && result.position && result.position.lng && result.position.lat) {
+                    updateLocation([result.position.lng, result.position.lat]);
+                    setStatus('使用IP粗略定位');
+                    searchAndDisplay();
+                } else {
+                    const errorMsg = result && result.message ? result.message : '未知错误';
+                    setStatus(`定位失败: ${errorMsg}。尝试浏览器定位...`);
+                    fallbackToBrowser();
+                }
+            });
+        }
+
+        function fallbackToBrowser() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    updateLocation([pos.coords.longitude, pos.coords.latitude]);
+                    setStatus('通过浏览器获取到GPS位置');
+                    searchAndDisplay();
+                }, err => {
+                    console.warn('浏览器定位也失败', err);
+                    setStatus('无法自动定位，请在上方输入地址搜索');
+                }, { timeout: 6000, enableHighAccuracy: true });
+            } else {
+                setStatus('浏览器不支持定位，请手动输入地址');
+            }
+        }
+
+        function updateLocation(lnglat) {
+            currentLocation = lnglat;
+            if (currentMarker) {
+                currentMarker.setPosition(lnglat);
+            } else {
+                currentMarker = new AMap.Marker({
+                    position: lnglat,
+                    icon: new AMap.Icon({
+                        size: new AMap.Size(25, 25),
+                        image: 'https://webapi.amap.com/theme/v1.3/markers/n/mark_b.png',
+                        imageSize: new AMap.Size(25, 25)
+                    })
+                });
+                map.add(currentMarker);
+            }
+            map.setCenter(lnglat);
+        }
+
+        function searchAndDisplay() {
+            if (!currentLocation) {
+                setStatus('尚未确定位置，请手动输入地址');
+                return;
+            }
+            setStatus('正在搜索...');
+            clearMarkers();
+
+            const keywords = document.getElementById('keywordInput').value.trim() || currentKeywords;
+            currentKeywords = keywords; // 保留当前使用的关键词
+
+            placeSearch.searchNearBy(
+                keywords,
+                currentLocation,
+                currentDistance,
+                (status, result) => {
+                    if (status === 'complete' && result.poiList && result.poiList.pois) {
+                        const pois = result.poiList.pois;
+                        setStatus(`找到 ${pois.length} 家店 (${currentDistance/1000}km 内)`);
+                        
+                        pois.forEach(poi => {
+                            const markerContent = document.createElement('div');
+                            markerContent.style.cssText = 'width:18px;height:18px;border-radius:50%;background:#d32f2f;border:2px solid white;box-shadow:0 0 8px rgba(0,0,0,0.5);';
+                            
+                            const marker = new AMap.Marker({
+                                position: [poi.location.lng, poi.location.lat],
+                                content: markerContent,
+                                offset: new AMap.Pixel(-11, -11),
+                                title: poi.name
+                            });
+                            
+                            marker.on('click', () => {
+                                new AMap.InfoWindow({
+                                    content: `<div style="padding:6px;"><b>${poi.name}</b><br/><small>地址: ${poi.address || '暂无'}</small><br/><small>电话: ${poi.tel || '暂无'}</small></div>`,
+                                    offset: new AMap.Pixel(0, -25)
+                                }).open(map, marker.getPosition());
+                            });
+                            
+                            marker.setMap(map);
+                            markers.push(marker);
+                        });
+                        
+                        if (pois.length > 0) {
+                            map.setFitView();
+                        }
+                    } else {
+                        setStatus('未找到汽修店，请尝试扩大范围或更换关键词');
+                    }
+                }
+            );
+            
+            drawCircle(currentLocation, currentDistance);
+        }
+
+        // 点击关键词旁边的“搜”按钮，重新搜索
+        function applyKeywordSearch() {
+            if (currentLocation) {
+                searchAndDisplay();
+            } else {
+                alert('请先定位或输入地址');
+            }
+        }
+
+        function searchByAddress() {
+            const address = document.getElementById('addressInput').value.trim();
+            if (!address) {
+                alert('请输入地址或城市名');
+                return;
+            }
+            setStatus('正在解析地址...');
+            geocoder.getLocation(address, (status, result) => {
+                if (status === 'complete' && result.geocodes.length > 0) {
+                    const loc = result.geocodes[0].location;
+                    updateLocation([loc.lng, loc.lat]);
+                    setStatus(`已定位到: ${result.geocodes[0].formattedAddress}`);
+                    searchAndDisplay();
+                } else {
+                    setStatus('地址解析失败，请检查输入');
+                }
+            });
+        }
+
+        function drawCircle(center, radius) {
+            if (circle) circle.setMap(null);
+            circle = new AMap.Circle({
+                center: center,
+                radius: radius,
+                strokeColor: "#d32f2f",
+                strokeWeight: 2,
+                strokeOpacity: 0.5,
+                fillColor: "#d32f2f",
+                fillOpacity: 0.1
+            });
+            circle.setMap(map);
+        }
+
+        function clearMarkers() {
+            markers.forEach(m => m.setMap(null));
+            markers = [];
+        }
+
+        function changeDistance(distance) {
+            currentDistance = distance;
+            document.querySelectorAll('.btn-group button').forEach(btn => btn.classList.remove('active'));
+            if (distance === 5000) document.getElementById('btn-5km').classList.add('active');
+            if (distance === 10000) document.getElementById('btn-10km').classList.add('active');
+            if (distance === 15000) document.getElementById('btn-15km').classList.add('active');
+            if (distance === 20000) document.getElementById('btn-20km').classList.add('active');
+            if (currentLocation) searchAndDisplay();
+        }
+
+        function setStatus(msg) {
+            document.getElementById('statusTag').innerText = msg;
+        }
+
+        initMap();
+    </script>
+</body>
+</html>
