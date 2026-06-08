@@ -97,9 +97,9 @@
             }
 
             map = new AMap.Map('container', {
-                zoom: 17,
+                zoom: 18,
                 center: [113.4110, 22.9330],  // 广州市番禺区东蓝路群兴工业园
-                zooms: [12, 19]
+                zooms: [14, 20]
             });
 
             log('地图创建成功');
@@ -280,7 +280,7 @@
             }
         }
 
-        // ===== 地址搜索（使用 DistrictSearch）=====
+        // ===== 地址搜索（DistrictSearch + PlaceSearch 并行）=====
         function searchByAddress() {
             var address = document.getElementById('addressInput').value.trim();
             if (!address) {
@@ -289,7 +289,7 @@
             }
 
             setStatus('正在定位地址...');
-            log('DistrictSearch 定位: ' + address);
+            log('定位地址: ' + address);
 
             var done = false;
             var timer = setTimeout(function() {
@@ -309,39 +309,38 @@
                 if (done) return;
                 done = true;
                 clearTimeout(timer);
-                setStatus(msg || '未找到该地址，请尝试输入城市名如"广州市"');
+                setStatus(msg || '未找到该地址');
             }
 
-            // 提取城市名（xxx市）
+            // 方式1: PlaceSearch 搜具体地点（村/工业园/街道）
+            var ps = new AMap.PlaceSearch({ pageSize: 1, extensions: 'base' });
+            ps.search(address, function(status, result) {
+                if (done) return;
+                log('PlaceSearch定位: status=' + status);
+                if (status === 'complete' && result.poiList && result.poiList.pois.length > 0) {
+                    var poi = result.poiList.pois[0];
+                    onFound(poi.name, poi.location.lng, poi.location.lat);
+                }
+            });
+
+            // 方式2: DistrictSearch 搜行政区划（并行）
             var cityMatch = address.match(/[一-龥]{2,10}(?:市|县|区)/);
             var cityName = cityMatch ? cityMatch[0] : address;
-
-            // 从村/biz_area 级别开始搜索，逐级回退
             var levels = ['biz_area', 'district', 'city', 'province'];
             tryLevel(0, address);
 
             function tryLevel(idx, keyword) {
                 if (done) return;
                 if (idx >= levels.length) {
-                    // 所有级别失败，试试只用城市名
                     if (keyword !== cityName && cityName !== address) {
-                        log('尝试城市名: ' + cityName);
                         tryLevel(0, cityName);
                         return;
                     }
-                    onFail('未找到该地址，请尝试输入城市名如"广州市"');
                     return;
                 }
-
                 var level = levels[idx];
                 log('DistrictSearch level=' + level + ' keyword=' + keyword);
-
-                var ds = new AMap.DistrictSearch({
-                    level: level,
-                    extensions: 'base',
-                    subdistrict: 0
-                });
-
+                var ds = new AMap.DistrictSearch({ level: level, extensions: 'base', subdistrict: 0 });
                 ds.search(keyword, function(status, result) {
                     if (done) return;
                     if (status === 'complete' && result.districtList && result.districtList.length > 0) {
@@ -351,10 +350,14 @@
                             return;
                         }
                     }
-                    // 继续下一级别
                     tryLevel(idx + 1, keyword);
                 });
             }
+
+            // 兜底超时处理
+            setTimeout(function() {
+                if (!done) onFail('未找到该地址，请尝试输入城市名如"广州市"');
+            }, 10000);
         }
 
         // ===== 工具函数 =====
