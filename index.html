@@ -392,6 +392,18 @@
             if (currentLocation) searchAndDisplay();
         }
 
+        // ===== Haversine 距离计算（米）=====
+        function calcDistance(lng1, lat1, lng2, lat2) {
+            var R = 6371000; // 地球半径（米）
+            var dLat = (lat2 - lat1) * Math.PI / 180;
+            var dLng = (lng2 - lng1) * Math.PI / 180;
+            var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return Math.round(R * c);
+        }
+
         // ===== 导出Excel =====
         function exportToExcel() {
             if (foundPois.length === 0) {
@@ -400,7 +412,7 @@
             }
 
             // 生成CSV（Excel直接打开）
-            var csv = '﻿序号,店名,地址,电话,经度,纬度\n';
+            var csv = '﻿序号,店名,地址,电话,经度,纬度,距离(米)\n';
             for (var i = 0; i < foundPois.length; i++) {
                 var p = foundPois[i];
                 var name = (p.name || '').replace(/"/g, '""');
@@ -408,7 +420,11 @@
                 var tel = (p.tel || '').replace(/"/g, '""');
                 var lng = p.location ? p.location.lng : '';
                 var lat = p.location ? p.location.lat : '';
-                csv += (i + 1) + ',"' + name + '","' + addr + '","' + tel + '",' + lng + ',' + lat + '\n';
+                var dist = '';
+                if (currentLocation && p.location) {
+                    dist = calcDistance(currentLocation[0], currentLocation[1], p.location.lng, p.location.lat);
+                }
+                csv += (i + 1) + ',"' + name + '","' + addr + '","' + tel + '",' + lng + ',' + lat + ',' + dist + '\n';
             }
 
             var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
