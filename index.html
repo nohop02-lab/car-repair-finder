@@ -101,7 +101,7 @@
 
             map = new AMap.Map('container', {
                 zoom: 13,
-                center: [113.4110, 22.9330],  // 广州市番禺区茶东村群兴工业园
+                center: [113.40631, 22.96266],  // 广州市番禺区茶东村群兴工业园
                 zooms: [3, 18],
                 zoomEnable: true,
                 scrollWheel: true,
@@ -127,11 +127,11 @@
                 log('PlaceSearch 初始化完成');
 
                 // 直接用默认位置开始搜索，不等浏览器定位
-                updateLocation([113.4110, 22.9330]);
+                updateLocation([113.40631, 22.96266]);
 
                 // 逆地理编码获取初始中心点地址名
                 var geocoder = new AMap.Geocoder();
-                geocoder.getAddress([113.4110, 22.9330], function(status, result) {
+                geocoder.getAddress([113.40631, 22.96266], function(status, result) {
                     if (status === 'complete' && result.regeocode) {
                         var addrComponent = result.regeocode.addressComponent;
                         // 优先用乡镇/街道 + 村庄/社区，回退到区/市
