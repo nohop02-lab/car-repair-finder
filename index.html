@@ -82,6 +82,19 @@
         var currentLocation = null;
         var defaultKeywords = '汽车维修|修车|汽车保养|汽车美容|汽修|洗车|轮胎|汽车改装|4S店|汽车快修|汽车空调|汽车电路';
 
+        // 排除非汽车店铺的关键词
+        var excludeKeywords = ['手机', '通讯', '数码', '电脑', '家电', '手表', '眼镜', '服装', '鞋', '化妆品', '理发', '美容美发', '餐饮', '饭店', '餐厅', '水果', '超市', '便利店', '宠物', '医院', '药店', '教育', '培训', '快递', '银行', '房产', '中介', '酒店', '宾馆', '网吧', 'KTV', '足浴', '按摩'];
+
+        function isCarRelated(poi) {
+            var text = (poi.name || '') + (poi.address || '') + (poi.type || '');
+            for (var k = 0; k < excludeKeywords.length; k++) {
+                if (text.indexOf(excludeKeywords[k]) >= 0) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         function log(msg) {
             console.log('[AMap]', msg);
         }
@@ -118,7 +131,7 @@
         function tryInitSearch(retryCount) {
             try {
                 placeSearch = new AMap.PlaceSearch({
-                    type: '010100|010101|010102|170000|060000|080000|160000|010103|990000',
+                    type: '010100|010103|170000|160000',
                     pageSize: 100,
                     pageIndex: 1,
                     extensions: 'all'
@@ -201,7 +214,7 @@
             var MAX_PAGES = 20;
 
             var search = new AMap.PlaceSearch({
-                type: '010100|010101|010102|170000|060000|080000|160000|010103|990000',
+                type: '010100|010103|170000|160000',
                 pageSize: PAGE_SIZE,
                 pageIndex: 1,
                 extensions: 'all'
@@ -221,9 +234,11 @@
                         var total = result.poiList.count || 0;
 
                         for (var i = 0; i < pois.length; i++) {
-                            allPois.push(pois[i]);
-                            foundPois.push(pois[i]);
-                            addMarker(pois[i]);
+                            if (isCarRelated(pois[i])) {
+                                allPois.push(pois[i]);
+                                foundPois.push(pois[i]);
+                                addMarker(pois[i]);
+                            }
                         }
 
                         setStatus('搜索中... ' + allPois.length + ' 家店 (' + (currentDistance/1000) + 'km 内)');
