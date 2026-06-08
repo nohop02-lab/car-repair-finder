@@ -178,7 +178,7 @@
             map.setCenter(lnglat);
         }
 
-        // ===== 周边搜索（多区域覆盖，突破200条限制）=====
+        // ===== 周边搜索（自动翻页，不限数量）=====
         function searchAndDisplay() {
             if (!currentLocation) {
                 setStatus('请先输入城市名定位');
@@ -193,80 +193,53 @@
 
             drawCircle(currentLocation, currentDistance);
 
-            var allPoisMap = {};  // 用id去重
+            var allPois = [];
             var PAGE_SIZE = 50;
-            var MAX_PAGES = 8;    // 每个子区域最多翻8页
+            var MAX_PAGES = 20;
 
-            // 生成子搜索中心点（把大圆拆成多个小圆覆盖）
-            var subCenters = getSubCenters(currentLocation, currentDistance);
-            var subRadius = currentDistance <= 5000 ? currentDistance : Math.min(currentDistance / 2, 5000);
-            var totalTasks = subCenters.length;
-            var completedTasks = 0;
+            var search = new AMap.PlaceSearch({
+                type: '010100|010101|010102|170000|060000|080000|160000|010103|990000',
+                pageSize: PAGE_SIZE,
+                pageIndex: 1,
+                extensions: 'all'
+            });
 
-            log('拆分为 ' + totalTasks + ' 个子区域搜索 (子半径=' + (subRadius/1000) + 'km)');
+            loadPage(1);
 
-            for (var s = 0; s < subCenters.length; s++) {
-                searchSubArea(subCenters[s], subRadius);
-            }
-
-            function searchSubArea(center, radius) {
-                var search = new AMap.PlaceSearch({
-                    type: '010100|010101|010102|170000|060000|080000|160000|010103|990000',
-                    pageSize: PAGE_SIZE,
-                    pageIndex: 1,
-                    extensions: 'all'
-                });
-
-                loadPage(search, center, radius, 1);
-            }
-
-            function loadPage(search, center, radius, idx) {
-                if (idx > MAX_PAGES) { taskDone(); return; }
+            function loadPage(idx) {
+                if (idx > MAX_PAGES) { finish(allPois.length); return; }
 
                 search.setPageIndex(idx);
-                search.searchNearBy(keywords, center, radius, function(status, result) {
+                search.searchNearBy(keywords, currentLocation, currentDistance, function(status, result) {
+                    log('第' + idx + '页 status=' + status + ' count=' + (result && result.poiList ? result.poiList.count : '?'));
+
                     if (status === 'complete' && result.poiList && result.poiList.pois) {
                         var pois = result.poiList.pois;
                         var total = result.poiList.count || 0;
 
                         for (var i = 0; i < pois.length; i++) {
-                            var poi = pois[i];
-                            // 检查是否在总搜索范围内
-                            var dist = getDistance(currentLocation, [poi.location.lng, poi.location.lat]);
-                            if (dist <= currentDistance + 200) {
-                                var key = poi.id || (poi.name + '|' + poi.location.lng + '|' + poi.location.lat);
-                                if (!allPoisMap[key]) {
-                                    allPoisMap[key] = poi;
-                                    addMarker(poi);
-                                }
-                            }
+                            allPois.push(pois[i]);
+                            addMarker(pois[i]);
                         }
 
-                        var count = Object.keys(allPoisMap).length;
-                        setStatus('搜索中... ' + count + ' 家店 (' + (currentDistance/1000) + 'km 内)');
+                        setStatus('搜索中... ' + allPois.length + ' 家店 (' + (currentDistance/1000) + 'km 内)');
 
                         if ((total > 0 && idx * PAGE_SIZE < total) || pois.length === PAGE_SIZE) {
-                            setTimeout(function() { loadPage(search, center, radius, idx + 1); }, 150);
+                            setTimeout(function() { loadPage(idx + 1); }, 200);
                         } else {
-                            taskDone();
+                            finish(allPois.length);
                         }
+                    } else if (status === 'no_data') {
+                        finish(allPois.length);
                     } else {
-                        taskDone();
+                        if (allPois.length > 0) {
+                            finish(allPois.length);
+                        } else {
+                            var errInfo = (result && result.info) ? result.info : '';
+                            setStatus('搜索失败: ' + (errInfo || '未知错误'));
+                        }
                     }
                 });
-            }
-
-            function taskDone() {
-                completedTasks++;
-                if (completedTasks >= totalTasks) {
-                    var finalCount = Object.keys(allPoisMap).length;
-                    if (finalCount > 0) {
-                        setStatus('共找到 ' + finalCount + ' 家店 (' + (currentDistance/1000) + 'km 内)');
-                        map.setFitView();
-                    } else {
-                        setStatus('未找到汽修店，请扩大范围或更换关键词');
-                    }
-                }
             }
 
             function addMarker(poi) {
@@ -287,55 +260,15 @@
                 m.setMap(map);
                 markers.push(m);
             }
-        }
 
-        // 生成子搜索中心点，把大圆拆成多个小圆覆盖
-        function getSubCenters(center, radius) {
-            if (radius <= 5000) return [center];  // 5km内不拆分
-
-            var points = [center];  // 始终包含中心点
-            var lat = center[1];
-            var lng = center[0];
-            var degPerMeter = 1.0 / 111000.0;
-            var lngDegPerMeter = degPerMeter / Math.cos(lat * Math.PI / 180);
-
-            // 子点间距（让子圆有重叠覆盖）
-            var stepMeter = radius * 0.7;
-            var stepLat = stepMeter * degPerMeter;
-            var stepLng = stepMeter * lngDegPerMeter;
-
-            // 六边形网格覆盖圆形区域
-            var maxR = radius * 0.75;
-            var maxLat = maxR * degPerMeter;
-            var maxLng = maxR * lngDegPerMeter;
-
-            for (var dlat = -maxLat; dlat <= maxLat; dlat += stepLat) {
-                for (var dlng = -maxLng; dlng <= maxLng; dlng += stepLng) {
-                    // 检查是否在覆盖圆内
-                    var distMeter = Math.sqrt(
-                        (dlat / degPerMeter) * (dlat / degPerMeter) +
-                        (dlng / lngDegPerMeter) * (dlng / lngDegPerMeter)
-                    );
-                    if (distMeter < maxR && !(Math.abs(dlat) < 0.0001 && Math.abs(dlng) < 0.0001)) {
-                        points.push([lng + dlng, lat + dlat]);
-                    }
+            function finish(count) {
+                if (count > 0) {
+                    setStatus('共找到 ' + count + ' 家店 (' + (currentDistance/1000) + 'km 内)');
+                    map.setFitView();
+                } else {
+                    setStatus('未找到汽修店，请扩大范围或更换关键词');
                 }
             }
-
-            log('搜索子区域数: ' + points.length + ' (半径' + (radius/1000) + 'km)');
-            return points;
-        }
-
-        // 计算两点间距离（米）
-        function getDistance(p1, p2) {
-            var lat1 = p1[1] * Math.PI / 180;
-            var lat2 = p2[1] * Math.PI / 180;
-            var dlat = (p2[1] - p1[1]) * Math.PI / 180;
-            var dlng = (p2[0] - p1[0]) * Math.PI / 180;
-            var a = Math.sin(dlat/2) * Math.sin(dlat/2) +
-                    Math.cos(lat1) * Math.cos(lat2) *
-                    Math.sin(dlng/2) * Math.sin(dlng/2);
-            return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
         function applyKeywordSearch() {
