@@ -173,7 +173,7 @@
             map.setCenter(lnglat);
         }
 
-        // ===== 周边搜索（自动翻页获取全部结果）=====
+        // ===== 周边搜索（自动翻页，不限数量）=====
         function searchAndDisplay() {
             if (!currentLocation) {
                 setStatus('请先输入城市名定位');
@@ -192,77 +192,83 @@
 
             drawCircle(currentLocation, currentDistance);
 
-            // 累积所有分页结果
             var allPois = [];
-            var pageSize = 25;
-            fetchPage(1);
+            var PAGE_SIZE = 25;
+            var MAX_RETRY = 3;
 
-            function fetchPage(pageIndex) {
-                placeSearch.searchNearBy(keywords, currentLocation, currentDistance, function(status, result) {
-                    log('搜索结果 page=' + pageIndex + ' status=' + status);
+            var search = new AMap.PlaceSearch({
+                type: '010100|010101|010102|170000|060000|080000|160000|010103|990000',
+                pageSize: PAGE_SIZE,
+                pageIndex: 1,
+                extensions: 'all'
+            });
+
+            loadPage(1);
+
+            function loadPage(idx) {
+                search.setPageIndex(idx);
+                log('加载第 ' + idx + ' 页...');
+
+                search.searchNearBy(keywords, currentLocation, currentDistance, function(status, result) {
+                    log('第 ' + idx + ' 页 status=' + status + ' count=' + (result && result.poiList ? result.poiList.count : '?'));
 
                     if (status === 'complete' && result.poiList && result.poiList.pois) {
                         var pois = result.poiList.pois;
-                        allPois = allPois.concat(pois);
-                        setStatus('搜索中... 已找到 ' + allPois.length + ' 家店');
+                        var total = result.poiList.count || 9999;
 
-                        // 显示当前页的标记
-                        showMarkers(pois, pageIndex === 1);
+                        for (var i = 0; i < pois.length; i++) {
+                            allPois.push(pois[i]);
+                            addMarker(pois[i]);
+                        }
 
-                        // 如果返回了整页且有更多，继续翻页
-                        if (pois.length === pageSize && result.poiList.count >= pageIndex * pageSize) {
-                            placeSearch.setPageIndex(++pageIndex);
-                            fetchPage(pageIndex);
+                        setStatus('搜索中... ' + allPois.length + ' 家店');
+
+                        // 还有更多页，继续
+                        if (idx * PAGE_SIZE < total) {
+                            setTimeout(function() { loadPage(idx + 1); }, 300);
                         } else {
-                            // 全部加载完成
-                            setStatus('找到 ' + allPois.length + ' 家店 (' + (currentDistance/1000) + 'km 内)');
-                            if (allPois.length > 0) {
-                                map.setFitView();
-                            }
+                            finish(allPois.length);
                         }
                     } else if (status === 'no_data') {
-                        if (allPois.length === 0) {
-                            setStatus('未找到汽修店，请扩大范围或更换关键词');
-                        } else {
-                            setStatus('找到 ' + allPois.length + ' 家店 (' + (currentDistance/1000) + 'km 内)');
-                            map.setFitView();
-                        }
+                        finish(allPois.length);
                     } else {
+                        // 出错但已有部分结果
                         if (allPois.length > 0) {
-                            setStatus('找到 ' + allPois.length + ' 家店 (部分)');
-                            map.setFitView();
+                            finish(allPois.length);
                         } else {
-                            log('搜索失败 - status=' + status + ' result=' + JSON.stringify(result));
                             var errInfo = (result && result.info) ? result.info : '';
-                            if (!errInfo && result && result.message) errInfo = result.message;
-                            if (!errInfo) errInfo = '未知错误(status=' + status + ')';
-                            setStatus('搜索失败: ' + errInfo);
+                            setStatus('搜索失败: ' + (errInfo || '未知错误'));
                         }
                     }
                 });
             }
-        }
 
-        function showMarkers(pois, isFirstPage) {
-            for (var i = 0; i < pois.length; i++) {
-                (function(poi) {
-                    var div = document.createElement('div');
-                    div.style.cssText = 'width:18px;height:18px;border-radius:50%;background:#d32f2f;border:2px solid white;box-shadow:0 0 8px rgba(0,0,0,0.5);';
-                    var m = new AMap.Marker({
-                        position: [poi.location.lng, poi.location.lat],
-                        content: div,
-                        offset: new AMap.Pixel(-11, -11),
-                        title: poi.name
-                    });
-                    m.on('click', function() {
-                        new AMap.InfoWindow({
-                            content: '<div style="padding:6px;max-width:220px;"><b>' + poi.name + '</b><br/><small>' + (poi.address || '暂无地址') + '</small><br/><small>' + (poi.tel || '暂无电话') + '</small></div>',
-                            offset: new AMap.Pixel(0, -25)
-                        }).open(map, m.getPosition());
-                    });
-                    m.setMap(map);
-                    markers.push(m);
-                })(pois[i]);
+            function addMarker(poi) {
+                var div = document.createElement('div');
+                div.style.cssText = 'width:18px;height:18px;border-radius:50%;background:#d32f2f;border:2px solid white;box-shadow:0 0 8px rgba(0,0,0,0.5);';
+                var m = new AMap.Marker({
+                    position: [poi.location.lng, poi.location.lat],
+                    content: div,
+                    offset: new AMap.Pixel(-11, -11),
+                    title: poi.name
+                });
+                m.on('click', function() {
+                    new AMap.InfoWindow({
+                        content: '<div style="padding:6px;max-width:220px;"><b>' + poi.name + '</b><br/><small>' + (poi.address || '暂无地址') + '</small><br/><small>' + (poi.tel || '暂无电话') + '</small></div>',
+                        offset: new AMap.Pixel(0, -25)
+                    }).open(map, m.getPosition());
+                });
+                m.setMap(map);
+                markers.push(m);
+            }
+
+            function finish(count) {
+                if (count > 0) {
+                    setStatus('共找到 ' + count + ' 家店 (' + (currentDistance/1000) + 'km 内)');
+                    map.setFitView();
+                } else {
+                    setStatus('未找到汽修店，请扩大范围或更换关键词');
+                }
             }
         }
 
