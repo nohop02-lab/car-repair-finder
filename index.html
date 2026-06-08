@@ -101,16 +101,17 @@
 
             log('地图创建成功');
 
-            // PlaceSearch 已在 script 标签中预加载，直接初始化
-            placeSearch = new AMap.PlaceSearch({
-                type: '010100|010101|010102|170000|060000|080000|160000|010103|990000',
-                pageSize: 50,
-                pageIndex: 1,
-                extensions: 'all'
+            // 必须等 PlaceSearch 插件完全加载后再初始化
+            AMap.plugin('AMap.PlaceSearch', function() {
+                placeSearch = new AMap.PlaceSearch({
+                    type: '010100|010101|010102|170000|060000|080000|160000|010103|990000',
+                    pageSize: 50,
+                    pageIndex: 1,
+                    extensions: 'all'
+                });
+                log('PlaceSearch 初始化完成');
+                locateUser();
             });
-            log('PlaceSearch 初始化完成');
-
-            locateUser();
         }
 
         // ===== 定位 =====
@@ -224,7 +225,10 @@
                 } else if (status === 'no_data') {
                     setStatus('未找到汽修店，请扩大范围或更换关键词');
                 } else {
-                    var errInfo = (result && result.info) ? result.info : '未知错误';
+                    log('搜索失败 - status=' + status + ' result=' + JSON.stringify(result));
+                    var errInfo = (result && result.info) ? result.info : '';
+                    if (!errInfo && result && result.message) errInfo = result.message;
+                    if (!errInfo) errInfo = '未知错误(status=' + status + ')';
                     setStatus('搜索失败: ' + errInfo);
                 }
             });
