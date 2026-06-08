@@ -132,7 +132,7 @@
     
     <div class="status-tag" id="statusTag">正在定位...</div>
 
-    <script src="https://webapi.amap.com/maps?v=2.0&key=629ce3fb2c7341fe33f9aa1491a3cf0d&plugin=AMap.PlaceSearch,AMap.Geolocation,AMap.Geocoder"></script>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=629ce3fb2c7341fe33f9aa1491a3cf0d&plugin=AMap.PlaceSearch,AMap.Geolocation"></script>
     <script>
         let map, circle, currentMarker, placeSearch, geocoder;
         let markers = [];
@@ -153,17 +153,18 @@
                 center: [116.397428, 39.90923]
             });
 
-            // 必须通过 AMap.plugin 加载，确保插件完全就绪后再使用
+            // 只加载必需的 PlaceSearch 插件
             console.log('正在加载高德插件...');
-            AMap.plugin(['AMap.PlaceSearch', 'AMap.Geocoder'], function() {
+            AMap.plugin('AMap.PlaceSearch', function() {
                 placeSearch = new AMap.PlaceSearch({
                     type: '010100|010101|010102|170000|060000|080000|160000|010103|990000',
                     pageSize: 50,
                     pageIndex: 1,
                     extensions: 'all'
                 });
-                geocoder = new AMap.Geocoder({ city: '全国' });
-                console.log('✅ placeSearch + geocoder 初始化完成');
+                // geocoder 改用 HTTP REST API，不依赖插件
+                geocoder = { ready: true };
+                console.log('✅ PlaceSearch 初始化完成');
 
                 // 插件就绪，开始定位
                 locateUserEnhanced();
@@ -176,62 +177,28 @@
                 setStatus('正在通过浏览器定位...');
                 console.log('尝试浏览器原生定位...');
 
-                var located = false;
-                var browserTimeout = setTimeout(function() {
-                    if (!located) {
-                        console.warn('浏览器定位超时');
-                        setStatus('浏览器定位超时，尝试高德IP定位...');
-                        tryAmapGeolocation();
-                    }
-                }, 6000);
-
                 navigator.geolocation.getCurrentPosition(
                     function(pos) {
-                        if (located) return;
-                        located = true;
-                        clearTimeout(browserTimeout);
                         console.log('✅ 浏览器定位成功:', pos.coords.longitude, pos.coords.latitude);
                         updateLocation([pos.coords.longitude, pos.coords.latitude]);
                         setStatus('✅ 定位成功');
                         searchAndDisplay();
                     },
                     function(err) {
-                        if (located) return;
-                        located = true;
-                        clearTimeout(browserTimeout);
                         console.warn('浏览器定位失败 — code:', err.code, 'message:', err.message);
-                        setStatus('浏览器定位失败，尝试高德IP定位...');
-                        tryAmapGeolocation();
+                        // 用户拒绝定位(code=1)或定位不可用(code=2)或超时(code=3)
+                        if (err.code === 1) {
+                            setStatus('⚠️ 定位被拒绝，请在上方输入城市名（如"广州市"）后点击跳转');
+                        } else if (err.code === 3) {
+                            setStatus('⚠️ 定位超时，请在上方输入城市名（如"广州市"）后点击跳转');
+                        } else {
+                            setStatus('⚠️ 定位不可用，请在上方输入城市名（如"广州市"）后点击跳转');
+                        }
                     },
                     { timeout: 5000, enableHighAccuracy: false, maximumAge: 300000 }
                 );
             } else {
-                setStatus('浏览器不支持定位，尝试高德IP定位...');
-                tryAmapGeolocation();
-            }
-
-            function tryAmapGeolocation() {
-                // 用高德IP定位作为兜底（不需要GPS，不需要额外插件加载）
-                AMap.plugin('AMap.Geolocation', function() {
-                    var geo = new AMap.Geolocation({
-                        enableHighAccuracy: false,
-                        timeout: 5000,
-                        noIpLocate: 0,
-                        noGeoLocation: 1,
-                        GeoLocationFirst: false
-                    });
-                    geo.getCurrentPosition(function(status, result) {
-                        console.log('高德定位结果 — status:', status, 'message:', result && result.message);
-                        if ((status === 'complete') && result && result.position) {
-                            updateLocation([result.position.lng, result.position.lat]);
-                            setStatus('📍 已通过IP定位');
-                            searchAndDisplay();
-                        } else {
-                            console.warn('高德定位也失败');
-                            setStatus('⚠️ 无法定位，请在上方输入城市名（如"北京"）后点击"跳转"');
-                        }
-                    });
-                });
+                setStatus('⚠️ 浏览器不支持定位，请在上方输入城市名（如"广州市"）后点击跳转');
             }
         }
 
