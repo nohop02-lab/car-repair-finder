@@ -94,8 +94,8 @@
             }
 
             map = new AMap.Map('container', {
-                zoom: 13,
-                center: [113.264385, 23.129112],  // 广州市中心
+                zoom: 15,
+                center: [113.40631, 22.96266],  // 广州市番禺区茶东村群兴工业园
                 zooms: [10, 18]
             });
 
@@ -115,8 +115,8 @@
 
         // ===== 定位 =====
         function locateUser() {
-            // 默认定位到广州市中心
-            var gzCenter = [113.264385, 23.129112];
+            // 默认定位到广州市番禺区茶东村群兴工业园
+            var gzCenter = [113.40631, 22.96266];
 
             if (navigator.geolocation) {
                 setStatus('正在定位...');
