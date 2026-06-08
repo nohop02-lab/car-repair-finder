@@ -433,7 +433,7 @@
             var url = URL.createObjectURL(blob);
             var link = document.createElement('a');
             link.href = url;
-            link.download = currentAddressName + '附近汽修店_' + (currentDistance/1000) + 'km_' + new Date().toISOString().slice(0,10) + '.csv';
+            link.download = currentAddressName + '半径' + (currentDistance/1000) + 'km汽修店_' + new Date().toISOString().slice(0,10) + '.csv';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
