@@ -89,7 +89,7 @@
         // ===== 初始化 =====
         function initMap() {
             if (typeof AMap === 'undefined') {
-                setStatus('地图加载失败 - 请检查API Key域名白名单: nohop02-lab.github.io');
+                setStatus('地图加载失败 - 请检查API Key域名白名单：nohop02-lab.github.io');
                 return;
             }
 
@@ -101,8 +101,12 @@
 
             log('地图创建成功');
 
-            // 必须等 PlaceSearch 插件完全加载后再初始化
-            AMap.plugin('AMap.PlaceSearch', function() {
+            // 直接初始化 PlaceSearch，不用 AMap.plugin 包裹
+            tryInitSearch(0);
+        }
+
+        function tryInitSearch(retryCount) {
+            try {
                 placeSearch = new AMap.PlaceSearch({
                     type: '010100|010101|010102|170000|060000|080000|160000|010103|990000',
                     pageSize: 50,
@@ -110,46 +114,42 @@
                     extensions: 'all'
                 });
                 log('PlaceSearch 初始化完成');
-                locateUser();
-            });
+
+                // 直接用默认位置开始搜索，不等浏览器定位
+                updateLocation([113.4110, 22.9330]);
+                setStatus('默认定位: 番禺区东蓝路群兴工业园');
+                searchAndDisplay();
+
+                // 后台尝试精确定位（不影响使用）
+                tryGeolocation();
+            } catch(e) {
+                log('PlaceSearch 初始化失败: ' + e.message);
+                if (retryCount < 5) {
+                    setTimeout(function() { tryInitSearch(retryCount + 1); }, 500);
+                } else {
+                    setStatus('搜索服务加载失败，请刷新页面');
+                }
+            }
         }
 
-        // ===== 定位 =====
-        function locateUser() {
-            // 默认定位到广州市番禺区东蓝路群兴工业园
-            var gzCenter = [113.4110, 22.9330];
-
-            if (navigator.geolocation) {
-                setStatus('正在定位...');
-                navigator.geolocation.getCurrentPosition(
-                    function(pos) {
-                        log('浏览器定位成功: ' + pos.coords.longitude + ', ' + pos.coords.latitude);
-                        var userLoc = [pos.coords.longitude, pos.coords.latitude];
-                        // 判断用户是否在广州市范围内
-                        if (userLoc[0] > 112.95 && userLoc[0] < 114.05 && userLoc[1] > 22.55 && userLoc[1] < 23.95) {
-                            updateLocation(userLoc);
-                            setStatus('定位成功');
-                        } else {
-                            // 不在广州，默认用广州中心
-                            updateLocation(gzCenter);
-                            setStatus('默认定位: 广州市');
-                        }
+        // ===== 后台定位（不影响页面使用）=====
+        function tryGeolocation() {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition(
+                function(pos) {
+                    log('后台定位成功: ' + pos.coords.longitude + ', ' + pos.coords.latitude);
+                    var userLoc = [pos.coords.longitude, pos.coords.latitude];
+                    if (userLoc[0] > 112.95 && userLoc[0] < 114.05 && userLoc[1] > 22.55 && userLoc[1] < 23.95) {
+                        updateLocation(userLoc);
+                        setStatus('已定位到你的位置');
                         searchAndDisplay();
-                    },
-                    function(err) {
-                        log('浏览器定位失败, code=' + err.code);
-                        // 定位失败直接用广州中心
-                        updateLocation(gzCenter);
-                        setStatus('默认定位: 广州市');
-                        searchAndDisplay();
-                    },
-                    { timeout: 5000, enableHighAccuracy: false, maximumAge: 300000 }
-                );
-            } else {
-                updateLocation(gzCenter);
-                setStatus('默认定位: 广州市');
-                searchAndDisplay();
-            }
+                    }
+                },
+                function(err) {
+                    log('后台定位失败, code=' + err.code);
+                },
+                { timeout: 5000, enableHighAccuracy: false, maximumAge: 300000 }
+            );
         }
 
         function updateLocation(lnglat) {
