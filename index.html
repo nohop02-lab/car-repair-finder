@@ -132,7 +132,7 @@
     
     <div class="status-tag" id="statusTag">正在定位...</div>
 
-    <script src="https://webapi.amap.com/maps?v=2.0&key=629ce3fb2c7341fe33f9aa1491a3cf0d&plugin=AMap.PlaceSearch,AMap.Geolocation,AMap.Geocoder"></script>
+    <script src=”https://webapi.amap.com/maps?v=2.0&key=629ce3fb2c7341fe33f9aa1491a3cf0d&plugin=AMap.PlaceSearch,AMap.Geolocation,AMap.Geocoder,AMap.AutoComplete”></script>
     <script>
         let map, circle, currentMarker, placeSearch, geocoder;
         let markers = [];
@@ -141,62 +141,91 @@
         let currentKeywords = '汽车维修|修车|汽车保养|汽车美容|汽修|洗车|轮胎|汽车改装|4S店|汽车快修|汽车空调|汽车电路';
 
         function initMap() {
+            // 检查高德地图JS API是否成功加载
+            if (typeof AMap === 'undefined') {
+                setStatus('❌ 高德地图API加载失败 — 请检查API Key域名白名单是否包含: nohop02-lab.github.io');
+                console.error('AMap未定义，API Key可能被域名限制。请在 https://console.amap.com/ 中将 nohop02-lab.github.io 加入白名单');
+                return;
+            }
+
             map = new AMap.Map('container', {
                 zoom: 13,
                 center: [116.397428, 39.90923]
             });
 
-            AMap.plugin(['AMap.PlaceSearch', 'AMap.Geolocation', 'AMap.Geocoder'], () => {
+            // 直接初始化插件（插件已在script标签中加载，无需再调AMap.plugin）
+            try {
                 placeSearch = new AMap.PlaceSearch({
                     type: '010100|010101|010102|170000|060000|080000|160000|010103|990000',
                     pageSize: 50,
+                    pageIndex: 1,
                     extensions: 'all'
                 });
-                geocoder = new AMap.Geocoder();
-                locateUserEnhanced();
-            });
+                geocoder = new AMap.Geocoder({ city: '全国' });
+                console.log('✅ 高德插件初始化成功');
+            } catch (e) {
+                console.error('❌ 插件初始化失败:', e.message);
+                setStatus('插件初始化失败: ' + e.message);
+                return;
+            }
+
+            // 开始定位
+            locateUserEnhanced();
         }
 
         function locateUserEnhanced() {
-            const geolocation = new AMap.Geolocation({
-                enableHighAccuracy: true,
-                timeout: 8000,
-                noIpLocate: 0,
-                noGeoLocation: 0,
-                GeoLocationFirst: true
-            });
+            setStatus('正在定位...');
 
-            geolocation.getCurrentPosition((status, result) => {
-                console.log('高德定位状态:', status, result);
-                if (status === 'complete' && result.position) {
-                    const loc = [result.position.lng, result.position.lat];
-                    updateLocation(loc);
-                    setStatus(`定位成功`);
-                    searchAndDisplay();
-                } else if (result && result.position && result.position.lng && result.position.lat) {
-                    updateLocation([result.position.lng, result.position.lat]);
-                    setStatus('使用IP粗略定位');
-                    searchAndDisplay();
-                } else {
-                    const errorMsg = result && result.message ? result.message : '未知错误';
-                    setStatus(`定位失败: ${errorMsg}。尝试浏览器定位...`);
-                    fallbackToBrowser();
-                }
+            // 先尝试高德定位（GPS + IP 回退）
+            AMap.plugin('AMap.Geolocation', function() {
+                const geolocation = new AMap.Geolocation({
+                    enableHighAccuracy: true,
+                    timeout: 8000,
+                    noIpLocate: 0,       // 允许IP定位作为回退
+                    noGeoLocation: 0,    // 允许浏览器定位作为回退
+                    GeoLocationFirst: true
+                });
+
+                geolocation.getCurrentPosition((status, result) => {
+                    console.log('高德定位结果 — status:', status, 'result:', JSON.stringify(result));
+
+                    if (status === 'complete' && result && result.position) {
+                        const loc = [result.position.lng, result.position.lat];
+                        updateLocation(loc);
+                        setStatus('✅ 定位成功 (高德GPS)');
+                        searchAndDisplay();
+                    } else if (result && result.position && result.position.lng && result.position.lat) {
+                        // 非complete状态但有位置数据（IP回退）
+                        updateLocation([result.position.lng, result.position.lat]);
+                        setStatus('📍 IP粗略定位');
+                        searchAndDisplay();
+                    } else {
+                        const errorMsg = (result && result.message) ? result.message : '定位服务不可用';
+                        console.warn('高德定位失败:', errorMsg);
+                        setStatus('高德定位失败，尝试浏览器定位...');
+                        fallbackToBrowser();
+                    }
+                });
             });
         }
 
         function fallbackToBrowser() {
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(pos => {
-                    updateLocation([pos.coords.longitude, pos.coords.latitude]);
-                    setStatus('通过浏览器获取到GPS位置');
-                    searchAndDisplay();
-                }, err => {
-                    console.warn('浏览器定位也失败', err);
-                    setStatus('无法自动定位，请在上方输入地址搜索');
-                }, { timeout: 6000, enableHighAccuracy: true });
+                navigator.geolocation.getCurrentPosition(
+                    function(pos) {
+                        console.log('浏览器定位成功:', pos.coords.longitude, pos.coords.latitude);
+                        updateLocation([pos.coords.longitude, pos.coords.latitude]);
+                        setStatus('✅ 定位成功 (浏览器GPS)');
+                        searchAndDisplay();
+                    },
+                    function(err) {
+                        console.warn('浏览器定位失败 — code:', err.code, 'message:', err.message);
+                        setStatus('⚠️ 无法自动定位，请在上方输入城市名或地址后点击”跳转”');
+                    },
+                    { timeout: 8000, enableHighAccuracy: true, maximumAge: 60000 }
+                );
             } else {
-                setStatus('浏览器不支持定位，请手动输入地址');
+                setStatus('⚠️ 浏览器不支持定位，请在上方输入地址搜索');
             }
         }
 
@@ -223,79 +252,106 @@
                 setStatus('尚未确定位置，请手动输入地址');
                 return;
             }
+            if (!placeSearch) {
+                console.error('placeSearch未初始化');
+                setStatus('搜索服务未就绪，请刷新页面');
+                return;
+            }
+
             setStatus('正在搜索...');
             clearMarkers();
 
             const keywords = document.getElementById('keywordInput').value.trim() || currentKeywords;
-            currentKeywords = keywords; // 保留当前使用的关键词
+            currentKeywords = keywords;
+
+            console.log('搜索参数 — 关键词:', keywords, '位置:', currentLocation, '范围:', currentDistance);
 
             placeSearch.searchNearBy(
                 keywords,
                 currentLocation,
                 currentDistance,
                 (status, result) => {
+                    console.log('搜索结果 — status:', status, 'result:', JSON.stringify(result));
+
                     if (status === 'complete' && result.poiList && result.poiList.pois) {
                         const pois = result.poiList.pois;
-                        setStatus(`找到 ${pois.length} 家店 (${currentDistance/1000}km 内)`);
-                        
+                        setStatus(`✅ 找到 ${pois.length} 家店 (${currentDistance/1000}km 内)`);
+
                         pois.forEach(poi => {
                             const markerContent = document.createElement('div');
                             markerContent.style.cssText = 'width:18px;height:18px;border-radius:50%;background:#d32f2f;border:2px solid white;box-shadow:0 0 8px rgba(0,0,0,0.5);';
-                            
+
                             const marker = new AMap.Marker({
                                 position: [poi.location.lng, poi.location.lat],
                                 content: markerContent,
                                 offset: new AMap.Pixel(-11, -11),
                                 title: poi.name
                             });
-                            
+
                             marker.on('click', () => {
                                 new AMap.InfoWindow({
-                                    content: `<div style="padding:6px;"><b>${poi.name}</b><br/><small>地址: ${poi.address || '暂无'}</small><br/><small>电话: ${poi.tel || '暂无'}</small></div>`,
+                                    content: `<div style=”padding:6px;max-width:220px;”><b>${poi.name}</b><br/><small>📍 ${poi.address || '暂无地址'}</small><br/><small>📞 ${poi.tel || '暂无电话'}</small></div>`,
                                     offset: new AMap.Pixel(0, -25)
                                 }).open(map, marker.getPosition());
                             });
-                            
+
                             marker.setMap(map);
                             markers.push(marker);
                         });
-                        
+
                         if (pois.length > 0) {
                             map.setFitView();
                         }
-                    } else {
+                    } else if (status === 'no_data') {
                         setStatus('未找到汽修店，请尝试扩大范围或更换关键词');
+                    } else {
+                        const errInfo = result && result.info ? result.info : '未知错误';
+                        console.error('搜索请求失败:', errInfo);
+                        setStatus('❌ 搜索失败: ' + errInfo + ' — 请检查API Key域名白名单');
                     }
                 }
             );
-            
+
             drawCircle(currentLocation, currentDistance);
         }
 
-        // 点击关键词旁边的“搜”按钮，重新搜索
+        // 点击关键词旁边的”搜”按钮，重新搜索
         function applyKeywordSearch() {
             if (currentLocation) {
                 searchAndDisplay();
             } else {
-                alert('请先定位或输入地址');
+                alert('请先定位或在上方输入地址后点击”跳转”');
             }
         }
 
         function searchByAddress() {
             const address = document.getElementById('addressInput').value.trim();
             if (!address) {
-                alert('请输入地址或城市名');
+                alert('请输入地址或城市名（例如：北京市朝阳区、上海浦东）');
                 return;
             }
-            setStatus('正在解析地址...');
+            if (!geocoder) {
+                console.error('geocoder未初始化');
+                setStatus('地理编码服务未就绪，请刷新页面');
+                return;
+            }
+
+            setStatus('🔍 正在解析地址...');
+            console.log('地址解析请求:', address);
+
             geocoder.getLocation(address, (status, result) => {
-                if (status === 'complete' && result.geocodes.length > 0) {
-                    const loc = result.geocodes[0].location;
+                console.log('地址解析结果 — status:', status, 'result:', JSON.stringify(result));
+
+                if (status === 'complete' && result.geocodes && result.geocodes.length > 0) {
+                    const geo = result.geocodes[0];
+                    const loc = geo.location;
                     updateLocation([loc.lng, loc.lat]);
-                    setStatus(`已定位到: ${result.geocodes[0].formattedAddress}`);
+                    setStatus(`📍 已定位: ${geo.formattedAddress || address}`);
                     searchAndDisplay();
                 } else {
-                    setStatus('地址解析失败，请检查输入');
+                    const errInfo = (result && result.info) ? result.info : '解析失败';
+                    console.error('地址解析失败:', errInfo, '完整结果:', result);
+                    setStatus('❌ 地址解析失败: ' + errInfo + ' — 请尝试输入更具体的地址，如”北京市朝阳区”');
                 }
             });
         }
@@ -305,10 +361,10 @@
             circle = new AMap.Circle({
                 center: center,
                 radius: radius,
-                strokeColor: "#d32f2f",
+                strokeColor: “#d32f2f”,
                 strokeWeight: 2,
                 strokeOpacity: 0.5,
-                fillColor: "#d32f2f",
+                fillColor: “#d32f2f”,
                 fillOpacity: 0.1
             });
             circle.setMap(map);
@@ -331,8 +387,10 @@
 
         function setStatus(msg) {
             document.getElementById('statusTag').innerText = msg;
+            console.log('[状态]', msg);
         }
 
+        // 启动初始化
         initMap();
     </script>
 </body>
