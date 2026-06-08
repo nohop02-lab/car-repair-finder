@@ -178,14 +178,10 @@
             map.setCenter(lnglat);
         }
 
-        // ===== 周边搜索（自动翻页，不限数量）=====
+        // ===== 周边搜索（自动翻页，不限数量，搜索结果随范围扩大）=====
         function searchAndDisplay() {
             if (!currentLocation) {
                 setStatus('请先输入城市名定位');
-                return;
-            }
-            if (!placeSearch) {
-                setStatus('搜索服务未就绪，请刷新页面');
                 return;
             }
 
@@ -198,8 +194,8 @@
             drawCircle(currentLocation, currentDistance);
 
             var allPois = [];
-            var PAGE_SIZE = 25;
-            var MAX_RETRY = 3;
+            var PAGE_SIZE = 50;
+            var MAX_PAGES = 20;  // 最多翻20页（50×20=1000条），防止死循环
 
             var search = new AMap.PlaceSearch({
                 type: '010100|010101|010102|170000|060000|080000|160000|010103|990000',
@@ -211,33 +207,32 @@
             loadPage(1);
 
             function loadPage(idx) {
-                search.setPageIndex(idx);
-                log('加载第 ' + idx + ' 页...');
+                if (idx > MAX_PAGES) { finish(allPois.length); return; }
 
+                search.setPageIndex(idx);
                 search.searchNearBy(keywords, currentLocation, currentDistance, function(status, result) {
-                    log('第 ' + idx + ' 页 status=' + status + ' count=' + (result && result.poiList ? result.poiList.count : '?'));
+                    log('第' + idx + '页 status=' + status + ' count=' + (result && result.poiList ? result.poiList.count : '?'));
 
                     if (status === 'complete' && result.poiList && result.poiList.pois) {
                         var pois = result.poiList.pois;
-                        var total = result.poiList.count || 9999;
+                        var total = result.poiList.count || 0;
 
                         for (var i = 0; i < pois.length; i++) {
                             allPois.push(pois[i]);
                             addMarker(pois[i]);
                         }
 
-                        setStatus('搜索中... ' + allPois.length + ' 家店');
+                        setStatus('搜索中... ' + allPois.length + ' 家店 (' + (currentDistance/1000) + 'km 内)');
 
-                        // 还有更多页，继续
-                        if (idx * PAGE_SIZE < total) {
-                            setTimeout(function() { loadPage(idx + 1); }, 300);
+                        // 两种情况继续翻页：1)官方total还没到 2)本页满意味着大概率还有
+                        if ((total > 0 && idx * PAGE_SIZE < total) || pois.length === PAGE_SIZE) {
+                            setTimeout(function() { loadPage(idx + 1); }, 200);
                         } else {
                             finish(allPois.length);
                         }
                     } else if (status === 'no_data') {
                         finish(allPois.length);
                     } else {
-                        // 出错但已有部分结果
                         if (allPois.length > 0) {
                             finish(allPois.length);
                         } else {
