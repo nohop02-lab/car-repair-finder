@@ -93,22 +93,11 @@
                 return;
             }
 
-            // 广州经纬度范围（粗略边界）
-            var gzBounds = new AMap.Bounds(
-                [112.95, 22.55],  // 西南角
-                [114.05, 23.95]   // 东北角
-            );
-
             map = new AMap.Map('container', {
                 zoom: 13,
                 center: [113.264385, 23.129112],  // 广州市中心
-                zooms: [10, 18],         // 限制缩放级别
-                dragEnable: true,
-                resizeEnable: true
+                zooms: [10, 18]
             });
-
-            // 限制地图拖动范围在广州市内
-            map.setBounds(gzBounds);
 
             log('地图创建成功');
 
