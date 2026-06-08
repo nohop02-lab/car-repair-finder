@@ -303,16 +303,21 @@
                 if (done) return;
                 done = true;
                 clearTimeout(timer);
+                currentAddressName = name;  // 先设默认值，等逆地理编码后更新
                 updateLocation([lng, lat]);
                 // 逆地理编码获取 xx区xx村 格式地名
                 var gc = new AMap.Geocoder();
                 gc.getAddress([lng, lat], function(status, result) {
                     if (status === 'complete' && result.regeocode) {
                         var addr = result.regeocode.addressComponent;
+                        log('逆地理编码结果: district=' + addr.district + ' village=' + addr.village + ' township=' + addr.township + ' street=' + addr.street + ' streetNumber=' + addr.streetNumber);
                         var addrName = (addr.district || '') + (addr.village || addr.township || addr.street || '');
-                        currentAddressName = addrName || name;
+                        if (addrName) {
+                            currentAddressName = addrName;
+                            log('更新地址名为: ' + addrName);
+                        }
                     } else {
-                        currentAddressName = name;
+                        log('逆地理编码失败, status=' + status);
                     }
                 });
                 setStatus('已定位: ' + name);
