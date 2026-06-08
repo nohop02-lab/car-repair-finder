@@ -93,10 +93,22 @@
                 return;
             }
 
+            // 广州经纬度范围（粗略边界）
+            var gzBounds = new AMap.Bounds(
+                [112.95, 22.55],  // 西南角
+                [114.05, 23.95]   // 东北角
+            );
+
             map = new AMap.Map('container', {
                 zoom: 13,
-                center: [116.397428, 39.90923]
+                center: [113.264385, 23.129112],  // 广州市中心
+                zooms: [10, 18],         // 限制缩放级别
+                dragEnable: true,
+                resizeEnable: true
             });
+
+            // 限制地图拖动范围在广州市内
+            map.setBounds(gzBounds);
 
             log('地图创建成功');
 
@@ -114,27 +126,39 @@
 
         // ===== 定位 =====
         function locateUser() {
+            // 默认定位到广州市中心
+            var gzCenter = [113.264385, 23.129112];
+
             if (navigator.geolocation) {
-                setStatus('正在通过浏览器定位...');
+                setStatus('正在定位...');
                 navigator.geolocation.getCurrentPosition(
                     function(pos) {
                         log('浏览器定位成功: ' + pos.coords.longitude + ', ' + pos.coords.latitude);
-                        updateLocation([pos.coords.longitude, pos.coords.latitude]);
-                        setStatus('定位成功');
+                        var userLoc = [pos.coords.longitude, pos.coords.latitude];
+                        // 判断用户是否在广州市范围内
+                        if (userLoc[0] > 112.95 && userLoc[0] < 114.05 && userLoc[1] > 22.55 && userLoc[1] < 23.95) {
+                            updateLocation(userLoc);
+                            setStatus('定位成功');
+                        } else {
+                            // 不在广州，默认用广州中心
+                            updateLocation(gzCenter);
+                            setStatus('默认定位: 广州市');
+                        }
                         searchAndDisplay();
                     },
                     function(err) {
-                        log('浏览器定位失败, code=' + err.code + ' msg=' + err.message);
-                        if (err.code === 1) {
-                            setStatus('定位被拒绝，请在上方输入城市名后点击跳转');
-                        } else {
-                            setStatus('定位失败，请在上方输入城市名后点击跳转');
-                        }
+                        log('浏览器定位失败, code=' + err.code);
+                        // 定位失败直接用广州中心
+                        updateLocation(gzCenter);
+                        setStatus('默认定位: 广州市');
+                        searchAndDisplay();
                     },
                     { timeout: 5000, enableHighAccuracy: false, maximumAge: 300000 }
                 );
             } else {
-                setStatus('浏览器不支持定位，请在上方输入城市名后点击跳转');
+                updateLocation(gzCenter);
+                setStatus('默认定位: 广州市');
+                searchAndDisplay();
             }
         }
 
