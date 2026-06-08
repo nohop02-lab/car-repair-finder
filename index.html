@@ -303,66 +303,95 @@
             }
 
             setStatus('🔍 正在定位地址...');
-            console.log('用DistrictSearch定位地址:', address);
+            console.log('定位地址:', address);
 
             var resolved = false;
             var geoTimeout = setTimeout(function() {
                 if (!resolved) {
                     resolved = true;
-                    console.error('DistrictSearch定位超时');
+                    console.error('定位超时');
                     setStatus('❌ 定位超时，请重试');
                 }
-            }, 10000);
+            }, 12000);
 
-            // 使用 DistrictSearch 搜索行政区划 —— 不受地图视野限制
+            // 提取可能的城市名（xxx市）
+            var cityMatch = address.match(/([一-龥]{2,10}(?:市|县|区))/);
+            var cityName = cityMatch ? cityMatch[1] : address;
+
             AMap.plugin('AMap.DistrictSearch', function() {
                 if (resolved) return;
+                // 依次尝试 district → city → province 级别
+                tryLevels(address, cityName, ['district', 'city', 'province'], 0);
+            });
 
-                var districtSearch = new AMap.DistrictSearch({
-                    level: 'city',      // 搜索市级行政区
+            function tryLevels(addr, fallbackCity, levels, idx) {
+                if (resolved || idx >= levels.length) {
+                    // 所有级别都失败，尝试只用城市名搜索
+                    if (!resolved && fallbackCity !== addr) {
+                        console.log('尝试用城市名搜索:', fallbackCity);
+                        tryLevels(fallbackCity, fallbackCity, ['city', 'district', 'province'], 0);
+                        return;
+                    }
+                    // 最后兜底：用PlaceSearch搜索
+                    if (!resolved) {
+                        console.log('DistrictSearch全部失败，尝试PlaceSearch兜底');
+                        tryPlaceSearchFallback(addr);
+                    }
+                    return;
+                }
+
+                var level = levels[idx];
+                console.log('DistrictSearch 尝试 level=' + level + ' keyword=' + addr);
+
+                var ds = new AMap.DistrictSearch({
+                    level: level,
                     extensions: 'base',
                     subdistrict: 0
                 });
 
-                districtSearch.search(address, function(status, result) {
+                ds.search(addr, function(status, result) {
                     if (resolved) return;
-                    resolved = true;
-                    clearTimeout(geoTimeout);
-                    console.log('DistrictSearch结果 — status:', status, 'result:', JSON.stringify(result));
+                    console.log('DistrictSearch(' + level + ') 结果:', status, result && result.info);
 
                     if (status === 'complete' && result.districtList && result.districtList.length > 0) {
-                        var district = result.districtList[0];
-                        if (district.center) {
-                            updateLocation([district.center.lng, district.center.lat]);
-                            setStatus('📍 已定位: ' + (district.name || address));
+                        var d = result.districtList[0];
+                        if (d.center) {
+                            resolved = true;
+                            clearTimeout(geoTimeout);
+                            updateLocation([d.center.lng, d.center.lat]);
+                            setStatus('📍 已定位: ' + (d.name || addr));
                             searchAndDisplay();
                             return;
                         }
                     }
-
-                    // 城市级别没找到，尝试 province 级别
-                    var districtSearch2 = new AMap.DistrictSearch({
-                        level: 'province',
-                        extensions: 'base',
-                        subdistrict: 0
-                    });
-                    districtSearch2.search(address, function(status2, result2) {
-                        console.log('DistrictSearch(province)结果:', status2, JSON.stringify(result2));
-                        if (status2 === 'complete' && result2.districtList && result2.districtList.length > 0) {
-                            var d = result2.districtList[0];
-                            if (d.center) {
-                                updateLocation([d.center.lng, d.center.lat]);
-                                setStatus('📍 已定位: ' + (d.name || address));
-                                searchAndDisplay();
-                                return;
-                            }
-                        }
-                        console.error('DistrictSearch全部失败:', result2 && result2.info);
-                        setStatus('❌ 未找到该地址，请尝试更具体的地址（如"广州市天河区"）');
-                    });
+                    // 继续下一级
+                    tryLevels(addr, fallbackCity, levels, idx + 1);
                 });
-            });
-        }
+            }
+
+            function tryPlaceSearchFallback(addr) {
+                if (resolved) return;
+                if (!placeSearch) {
+                    resolved = true;
+                    clearTimeout(geoTimeout);
+                    setStatus('❌ 未找到该地址，请尝试输入城市名（如"广州市"）');
+                    return;
+                }
+                placeSearch.search(addr, function(status, result) {
+                    if (resolved) return;
+                    resolved = true;
+                    clearTimeout(geoTimeout);
+                    console.log('PlaceSearch兜底结果:', status, JSON.stringify(result));
+                    if (status === 'complete' && result.poiList && result.poiList.pois.length > 0) {
+                        var poi = result.poiList.pois[0];
+                        updateLocation([poi.location.lng, poi.location.lat]);
+                        setStatus('📍 已定位: ' + poi.name);
+                        searchAndDisplay();
+                    } else {
+                        setStatus('❌ 未找到该地址，请尝试输入城市名（如"广州市"）');
+                    }
+                });
+            }
         }
 
         function drawCircle(center, radius) {
