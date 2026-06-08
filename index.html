@@ -50,8 +50,8 @@
 
     <div class="control-bar" id="controlBar">
         <div class="btn-group">
-            <button id="btn-5km" onclick="changeDistance(5000)">5 km</button>
-            <button id="btn-10km" onclick="changeDistance(10000)" class="active">10 km</button>
+            <button id="btn-5km" onclick="changeDistance(5000)" class="active">5 km</button>
+            <button id="btn-10km" onclick="changeDistance(10000)">10 km</button>
             <button id="btn-15km" onclick="changeDistance(15000)">15 km</button>
             <button id="btn-20km" onclick="changeDistance(20000)">20 km</button>
         </div>
@@ -76,7 +76,7 @@
     <script>
         var map, circle, currentMarker, placeSearch;
         var markers = [];
-        var currentDistance = 10000;
+        var currentDistance = 5000;
         var currentLocation = null;
         var defaultKeywords = '汽车维修|修车|汽车保养|汽车美容|汽修|洗车|轮胎|汽车改装|4S店|汽车快修|汽车空调|汽车电路';
 
@@ -97,9 +97,9 @@
             }
 
             map = new AMap.Map('container', {
-                zoom: 15,
+                zoom: 17,
                 center: [113.4110, 22.9330],  // 广州市番禺区东蓝路群兴工业园
-                zooms: [10, 18]
+                zooms: [12, 19]
             });
 
             log('地图创建成功');
