@@ -99,7 +99,12 @@
             map = new AMap.Map('container', {
                 zoom: 13,
                 center: [113.4110, 22.9330],  // 广州市番禺区东蓝路群兴工业园
-                zooms: [3, 18]
+                zooms: [3, 18],
+                zoomEnable: true,
+                scrollWheel: true,
+                doubleClickZoom: true,
+                dragEnable: true,
+                keyboardEnable: true
             });
 
             log('地图创建成功');
