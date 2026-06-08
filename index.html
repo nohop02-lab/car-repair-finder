@@ -73,7 +73,7 @@
     <script>
         window._AMapSecurityConfig = { securityJsCode: '73d4243b1c025101016a78b3b9aa8305' };
     </script>
-    <script src="https://webapi.amap.com/maps?v=2.0&key=629ce3fb2c7341fe33f9aa1491a3cf0d&plugin=AMap.PlaceSearch,AMap.Geolocation,AMap.DistrictSearch&jscode=73d4243b1c025101016a78b3b9aa8305"></script>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=629ce3fb2c7341fe33f9aa1491a3cf0d&plugin=AMap.PlaceSearch,AMap.Geolocation,AMap.DistrictSearch,AMap.Geocoder&jscode=73d4243b1c025101016a78b3b9aa8305"></script>
     <script>
         var map, circle, currentMarker, placeSearch;
         var markers = [];
@@ -128,7 +128,23 @@
 
                 // 直接用默认位置开始搜索，不等浏览器定位
                 updateLocation([113.40631, 22.96266]);
-                currentAddressName = '群兴工业园';
+                // 逆地理编码获取地址名
+                var initGeocoder = new AMap.Geocoder();
+                initGeocoder.getAddress([113.40631, 22.96266], function(status, result) {
+                    if (status === 'complete' && result.regeocode) {
+                        var addr = result.regeocode.addressComponent;
+                        // 优先 village → street+门牌 → township → 格式化地址
+                        var addrName = addr.village || '';
+                        if (!addrName && addr.street) {
+                            addrName = addr.street + (addr.streetNumber || '');
+                        }
+                        if (!addrName) {
+                            addrName = addr.township || result.regeocode.formattedAddress || '';
+                        }
+                        currentAddressName = addrName;
+                        log('初始地址名: ' + addrName);
+                    }
+                });
                 setStatus('默认定位: 番禺区茶东村群兴工业园');
                 searchAndDisplay();
 
@@ -414,19 +430,17 @@
             }
 
             // 生成CSV（Excel直接打开）
-            var csv = '﻿序号,店名,地址,电话,经度,纬度,距离(米)\n';
+            var csv = '﻿序号,店名,地址,电话,距离(米)\n';
             for (var i = 0; i < foundPois.length; i++) {
                 var p = foundPois[i];
                 var name = (p.name || '').replace(/"/g, '""');
                 var addr = (p.address || '').replace(/"/g, '""');
                 var tel = (p.tel || '').replace(/"/g, '""');
-                var lng = p.location ? p.location.lng : '';
-                var lat = p.location ? p.location.lat : '';
                 var dist = '';
                 if (currentLocation && p.location) {
                     dist = calcDistance(currentLocation[0], currentLocation[1], p.location.lng, p.location.lat);
                 }
-                csv += (i + 1) + ',"' + name + '","' + addr + '","' + tel + '",' + lng + ',' + lat + ',' + dist + '\n';
+                csv += (i + 1) + ',"' + name + '","' + addr + '","' + tel + '",' + dist + '\n';
             }
 
             var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
