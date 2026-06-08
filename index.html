@@ -303,8 +303,18 @@
                 if (done) return;
                 done = true;
                 clearTimeout(timer);
-                currentAddressName = name;
                 updateLocation([lng, lat]);
+                // 逆地理编码获取 xx区xx村 格式地名
+                var gc = new AMap.Geocoder();
+                gc.getAddress([lng, lat], function(status, result) {
+                    if (status === 'complete' && result.regeocode) {
+                        var addr = result.regeocode.addressComponent;
+                        var addrName = (addr.district || '') + (addr.village || addr.township || addr.street || '');
+                        currentAddressName = addrName || name;
+                    } else {
+                        currentAddressName = name;
+                    }
+                });
                 setStatus('已定位: ' + name);
                 searchAndDisplay();
             }
