@@ -311,7 +311,7 @@
                     if (status === 'complete' && result.regeocode) {
                         var addr = result.regeocode.addressComponent;
                         log('逆地理编码结果: district=' + addr.district + ' village=' + addr.village + ' township=' + addr.township + ' street=' + addr.street + ' streetNumber=' + addr.streetNumber);
-                        var addrName = (addr.district || '') + (addr.village || addr.township || addr.street || '');
+                        var addrName = (addr.district || '') + (addr.village || addr.township || addr.street || '') + name;
                         if (addrName) {
                             currentAddressName = addrName;
                             log('更新地址名为: ' + addrName);
