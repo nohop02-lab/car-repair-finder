@@ -283,8 +283,8 @@
             var cityMatch = address.match(/[一-龥]{2,10}(?:市|县|区)/);
             var cityName = cityMatch ? cityMatch[0] : address;
 
-            // 从 district 级别开始搜索，逐级回退
-            var levels = ['district', 'city', 'province'];
+            // 从村/biz_area 级别开始搜索，逐级回退
+            var levels = ['biz_area', 'district', 'city', 'province'];
             tryLevel(0, address);
 
             function tryLevel(idx, keyword) {
