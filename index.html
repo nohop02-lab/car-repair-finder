@@ -128,7 +128,32 @@
 
                 // 直接用默认位置开始搜索，不等浏览器定位
                 updateLocation([113.40631, 22.96266]);
-                currentAddressName = '番禺区茶东村群兴工业园';
+
+                // 逆地理编码获取初始中心点地址名
+                var geocoder = new AMap.Geocoder();
+                geocoder.getAddress([113.40631, 22.96266], function(status, result) {
+                    if (status === 'complete' && result.regeocode) {
+                        var addrComponent = result.regeocode.addressComponent;
+                        // 优先用乡镇/街道 + 村庄/社区，回退到区/市
+                        var name = addrComponent.township || addrComponent.street || '';
+                        if (addrComponent.village || addrComponent.streetNumber) {
+                            name += (addrComponent.village || addrComponent.streetNumber || '');
+                        }
+                        if (!name) {
+                            name = (addrComponent.district || '') + (addrComponent.township || '');
+                        }
+                        if (!name || name.length < 2) {
+                            name = result.regeocode.formattedAddress || '当前位置';
+                        }
+                        currentAddressName = name;
+                        setStatus('默认定位: ' + name);
+                        log('逆地理编码获取地址名: ' + name);
+                    } else {
+                        currentAddressName = '番禺区茶东村群兴工业园';  // 回退默认值
+                        setStatus('默认定位: 番禺区茶东村群兴工业园');
+                    }
+                });
+
                 setStatus('默认定位: 番禺区茶东村群兴工业园');
                 searchAndDisplay();
 
