@@ -73,7 +73,7 @@
     <script>
         window._AMapSecurityConfig = { securityJsCode: '73d4243b1c025101016a78b3b9aa8305' };
     </script>
-    <script src="https://webapi.amap.com/maps?v=2.0&key=629ce3fb2c7341fe33f9aa1491a3cf0d&plugin=AMap.PlaceSearch,AMap.Geolocation,AMap.DistrictSearch,AMap.Geocoder&jscode=73d4243b1c025101016a78b3b9aa8305"></script>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=629ce3fb2c7341fe33f9aa1491a3cf0d&plugin=AMap.PlaceSearch,AMap.Geolocation,AMap.DistrictSearch&jscode=73d4243b1c025101016a78b3b9aa8305"></script>
     <script>
         var map, circle, currentMarker, placeSearch;
         var markers = [];
@@ -128,7 +128,7 @@
 
                 // 直接用默认位置开始搜索，不等浏览器定位
                 updateLocation([113.40631, 22.96266]);
-                currentAddressName = '番禺区茶东村群兴工业园';
+                currentAddressName = '群兴工业园';
                 setStatus('默认定位: 番禺区茶东村群兴工业园');
                 searchAndDisplay();
 
@@ -304,23 +304,8 @@
                 if (done) return;
                 done = true;
                 clearTimeout(timer);
-                currentAddressName = name;  // 先设默认值，等逆地理编码后更新
+                currentAddressName = name;
                 updateLocation([lng, lat]);
-                // 逆地理编码获取 xx区xx村 格式地名
-                var gc = new AMap.Geocoder();
-                gc.getAddress([lng, lat], function(status, result) {
-                    if (status === 'complete' && result.regeocode) {
-                        var addr = result.regeocode.addressComponent;
-                        log('逆地理编码结果: district=' + addr.district + ' village=' + addr.village + ' township=' + addr.township + ' street=' + addr.street + ' streetNumber=' + addr.streetNumber);
-                        var addrName = (addr.district || '') + (addr.village || addr.township || addr.street || '') + name;
-                        if (addrName) {
-                            currentAddressName = addrName;
-                            log('更新地址名为: ' + addrName);
-                        }
-                    } else {
-                        log('逆地理编码失败, status=' + status);
-                    }
-                });
                 setStatus('已定位: ' + name);
                 searchAndDisplay();
             }
