@@ -101,7 +101,7 @@
 
             map = new AMap.Map('container', {
                 zoom: 13,
-                center: [113.4110, 22.9330],  // 广州市番禺区东蓝路群兴工业园
+                center: [113.4110, 22.9330],  // 广州市番禺区茶东村群兴工业园
                 zooms: [3, 18],
                 zoomEnable: true,
                 scrollWheel: true,
@@ -149,12 +149,12 @@
                         setStatus('默认定位: ' + name);
                         log('逆地理编码获取地址名: ' + name);
                     } else {
-                        currentAddressName = '番禺区东蓝路群兴工业园';  // 回退默认值
-                        setStatus('默认定位: 番禺区东蓝路群兴工业园');
+                        currentAddressName = '番禺区茶东村群兴工业园';  // 回退默认值
+                        setStatus('默认定位: 番禺区茶东村群兴工业园');
                     }
                 });
 
-                setStatus('默认定位: 番禺区东蓝路群兴工业园');
+                setStatus('默认定位: 番禺区茶东村群兴工业园');
                 searchAndDisplay();
 
                 // 后台尝试精确定位（不影响使用）
