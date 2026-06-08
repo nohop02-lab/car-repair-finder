@@ -54,6 +54,7 @@
             <button id="btn-10km" onclick="changeDistance(10000)">10 km</button>
             <button id="btn-15km" onclick="changeDistance(15000)">15 km</button>
             <button id="btn-20km" onclick="changeDistance(20000)">20 km</button>
+            <button onclick="exportToExcel()" style="background:#4CAF50;color:white;border:none;border-radius:20px;padding:6px 14px;font-size:14px;cursor:pointer;white-space:nowrap;margin-left:10px;">导出</button>
         </div>
         <div class="search-row">
             <div class="keyword-input">
@@ -64,7 +65,6 @@
                 <input type="text" id="addressInput" placeholder="输入地址" />
                 <button onclick="searchByAddress()">跳转</button>
             </div>
-            <button onclick="exportToExcel()" style="background:#4CAF50;color:white;border:none;border-radius:20px;padding:6px 14px;font-size:14px;cursor:pointer;white-space:nowrap;">导出Excel</button>
         </div>
     </div>
 
