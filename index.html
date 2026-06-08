@@ -64,6 +64,7 @@
                 <input type="text" id="addressInput" placeholder="输入地址" />
                 <button onclick="searchByAddress()">跳转</button>
             </div>
+            <button onclick="exportToExcel()" style="background:#4CAF50;color:white;border:none;border-radius:20px;padding:6px 14px;font-size:14px;cursor:pointer;white-space:nowrap;">导出Excel</button>
         </div>
     </div>
 
@@ -76,6 +77,7 @@
     <script>
         var map, circle, currentMarker, placeSearch;
         var markers = [];
+        var foundPois = [];  // 存储搜索到的所有POI，用于导出
         var currentDistance = 5000;
         var currentLocation = null;
         var defaultKeywords = '汽车维修|修车|汽车保养|汽车美容|汽修|洗车|轮胎|汽车改装|4S店|汽车快修|汽车空调|汽车电路';
@@ -187,6 +189,7 @@
 
             setStatus('正在搜索...');
             clearMarkers();
+            foundPois = [];  // 清空旧数据
 
             var keywords = document.getElementById('keywordInput').value.trim() || defaultKeywords;
             log('搜索: 关键词=' + keywords + ' 位置=' + currentLocation + ' 范围=' + currentDistance);
@@ -219,6 +222,7 @@
 
                         for (var i = 0; i < pois.length; i++) {
                             allPois.push(pois[i]);
+                            foundPois.push(pois[i]);
                             addMarker(pois[i]);
                         }
 
@@ -386,6 +390,38 @@
             if (distance === 15000) document.getElementById('btn-15km').classList.add('active');
             if (distance === 20000) document.getElementById('btn-20km').classList.add('active');
             if (currentLocation) searchAndDisplay();
+        }
+
+        // ===== 导出Excel =====
+        function exportToExcel() {
+            if (foundPois.length === 0) {
+                alert('暂无搜索结果可导出');
+                return;
+            }
+
+            // 生成CSV（Excel直接打开）
+            var csv = '﻿序号,店名,地址,电话,经度,纬度\n';
+            for (var i = 0; i < foundPois.length; i++) {
+                var p = foundPois[i];
+                var name = (p.name || '').replace(/"/g, '""');
+                var addr = (p.address || '').replace(/"/g, '""');
+                var tel = (p.tel || '').replace(/"/g, '""');
+                var lng = p.location ? p.location.lng : '';
+                var lat = p.location ? p.location.lat : '';
+                csv += (i + 1) + ',"' + name + '","' + addr + '","' + tel + '",' + lng + ',' + lat + '\n';
+            }
+
+            var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            var url = URL.createObjectURL(blob);
+            var link = document.createElement('a');
+            link.href = url;
+            link.download = '附近汽修店_' + (currentDistance/1000) + 'km_' + new Date().toISOString().slice(0,10) + '.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            setStatus('已导出 ' + foundPois.length + ' 条记录');
         }
 
         // 启动
