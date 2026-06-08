@@ -73,14 +73,14 @@
     <script>
         window._AMapSecurityConfig = { securityJsCode: '73d4243b1c025101016a78b3b9aa8305' };
     </script>
-    <script src="https://webapi.amap.com/maps?v=2.0&key=629ce3fb2c7341fe33f9aa1491a3cf0d&plugin=AMap.PlaceSearch,AMap.Geolocation,AMap.DistrictSearch&jscode=73d4243b1c025101016a78b3b9aa8305"></script>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=629ce3fb2c7341fe33f9aa1491a3cf0d&plugin=AMap.PlaceSearch,AMap.Geolocation,AMap.DistrictSearch,AMap.Geocoder&jscode=73d4243b1c025101016a78b3b9aa8305"></script>
     <script>
         var map, circle, currentMarker, placeSearch;
         var markers = [];
         var foundPois = [];  // 存储搜索到的所有POI，用于导出
         var currentDistance = 5000;
         var currentLocation = null;
-        var currentAddressName = '番禺区东蓝路群兴工业园';  // 当前定位地点名，用于导出文件名（与初始地图中心点一致）
+        var currentAddressName = '';  // 当前定位地点名，由逆地理编码动态获取
         var defaultKeywords = '汽车维修|修车|汽车保养|汽车美容|汽修|洗车|轮胎|汽车改装|4S店|汽车快修|汽车空调|汽车电路';
 
         function log(msg) {
@@ -128,6 +128,32 @@
 
                 // 直接用默认位置开始搜索，不等浏览器定位
                 updateLocation([113.4110, 22.9330]);
+
+                // 逆地理编码获取初始中心点地址名
+                var geocoder = new AMap.Geocoder();
+                geocoder.getAddress([113.4110, 22.9330], function(status, result) {
+                    if (status === 'complete' && result.regeocode) {
+                        var addrComponent = result.regeocode.addressComponent;
+                        // 优先用乡镇/街道 + 村庄/社区，回退到区/市
+                        var name = addrComponent.township || addrComponent.street || '';
+                        if (addrComponent.village || addrComponent.streetNumber) {
+                            name += (addrComponent.village || addrComponent.streetNumber || '');
+                        }
+                        if (!name) {
+                            name = (addrComponent.district || '') + (addrComponent.township || '');
+                        }
+                        if (!name || name.length < 2) {
+                            name = result.regeocode.formattedAddress || '当前位置';
+                        }
+                        currentAddressName = name;
+                        setStatus('默认定位: ' + name);
+                        log('逆地理编码获取地址名: ' + name);
+                    } else {
+                        currentAddressName = '番禺区东蓝路群兴工业园';  // 回退默认值
+                        setStatus('默认定位: 番禺区东蓝路群兴工业园');
+                    }
+                });
+
                 setStatus('默认定位: 番禺区东蓝路群兴工业园');
                 searchAndDisplay();
 
