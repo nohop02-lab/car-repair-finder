@@ -132,7 +132,7 @@
     
     <div class="status-tag" id="statusTag">正在定位...</div>
 
-    <script src="https://webapi.amap.com/maps?v=2.0&key=629ce3fb2c7341fe33f9aa1491a3cf0d&plugin=AMap.PlaceSearch,AMap.Geolocation,AMap.Geocoder,AMap.AutoComplete"></script>
+    <script src="https://webapi.amap.com/maps?v=2.0&key=629ce3fb2c7341fe33f9aa1491a3cf0d&plugin=AMap.PlaceSearch,AMap.Geolocation,AMap.Geocoder"></script>
     <script>
         let map, circle, currentMarker, placeSearch, geocoder;
         let markers = [];
@@ -174,58 +174,67 @@
         }
 
         function locateUserEnhanced() {
-            setStatus('正在定位...');
-
-            // 先尝试高德定位（GPS + IP 回退）
-            AMap.plugin('AMap.Geolocation', function() {
-                const geolocation = new AMap.Geolocation({
-                    enableHighAccuracy: true,
-                    timeout: 8000,
-                    noIpLocate: 0,       // 允许IP定位作为回退
-                    noGeoLocation: 0,    // 允许浏览器定位作为回退
-                    GeoLocationFirst: true
-                });
-
-                geolocation.getCurrentPosition((status, result) => {
-                    console.log('高德定位结果 — status:', status, 'result:', JSON.stringify(result));
-
-                    if (status === 'complete' && result && result.position) {
-                        const loc = [result.position.lng, result.position.lat];
-                        updateLocation(loc);
-                        setStatus('✅ 定位成功 (高德GPS)');
-                        searchAndDisplay();
-                    } else if (result && result.position && result.position.lng && result.position.lat) {
-                        // 非complete状态但有位置数据（IP回退）
-                        updateLocation([result.position.lng, result.position.lat]);
-                        setStatus('📍 IP粗略定位');
-                        searchAndDisplay();
-                    } else {
-                        const errorMsg = (result && result.message) ? result.message : '定位服务不可用';
-                        console.warn('高德定位失败:', errorMsg);
-                        setStatus('高德定位失败，尝试浏览器定位...');
-                        fallbackToBrowser();
-                    }
-                });
-            });
-        }
-
-        function fallbackToBrowser() {
+            // 优先使用浏览器原生定位（桌面端通过WiFi/IP定位更可靠）
             if (navigator.geolocation) {
+                setStatus('正在通过浏览器定位...');
+                console.log('尝试浏览器原生定位...');
+
+                var located = false;
+                var browserTimeout = setTimeout(function() {
+                    if (!located) {
+                        console.warn('浏览器定位超时');
+                        setStatus('浏览器定位超时，尝试高德IP定位...');
+                        tryAmapGeolocation();
+                    }
+                }, 6000);
+
                 navigator.geolocation.getCurrentPosition(
                     function(pos) {
-                        console.log('浏览器定位成功:', pos.coords.longitude, pos.coords.latitude);
+                        if (located) return;
+                        located = true;
+                        clearTimeout(browserTimeout);
+                        console.log('✅ 浏览器定位成功:', pos.coords.longitude, pos.coords.latitude);
                         updateLocation([pos.coords.longitude, pos.coords.latitude]);
-                        setStatus('✅ 定位成功 (浏览器GPS)');
+                        setStatus('✅ 定位成功');
                         searchAndDisplay();
                     },
                     function(err) {
+                        if (located) return;
+                        located = true;
+                        clearTimeout(browserTimeout);
                         console.warn('浏览器定位失败 — code:', err.code, 'message:', err.message);
-                        setStatus('⚠️ 无法自动定位，请在上方输入城市名或地址后点击"跳转"');
+                        setStatus('浏览器定位失败，尝试高德IP定位...');
+                        tryAmapGeolocation();
                     },
-                    { timeout: 8000, enableHighAccuracy: true, maximumAge: 60000 }
+                    { timeout: 5000, enableHighAccuracy: false, maximumAge: 300000 }
                 );
             } else {
-                setStatus('⚠️ 浏览器不支持定位，请在上方输入地址搜索');
+                setStatus('浏览器不支持定位，尝试高德IP定位...');
+                tryAmapGeolocation();
+            }
+
+            function tryAmapGeolocation() {
+                // 用高德IP定位作为兜底（不需要GPS，不需要额外插件加载）
+                AMap.plugin('AMap.Geolocation', function() {
+                    var geo = new AMap.Geolocation({
+                        enableHighAccuracy: false,
+                        timeout: 5000,
+                        noIpLocate: 0,
+                        noGeoLocation: 1,
+                        GeoLocationFirst: false
+                    });
+                    geo.getCurrentPosition(function(status, result) {
+                        console.log('高德定位结果 — status:', status, 'message:', result && result.message);
+                        if ((status === 'complete') && result && result.position) {
+                            updateLocation([result.position.lng, result.position.lat]);
+                            setStatus('📍 已通过IP定位');
+                            searchAndDisplay();
+                        } else {
+                            console.warn('高德定位也失败');
+                            setStatus('⚠️ 无法定位，请在上方输入城市名（如"北京"）后点击"跳转"');
+                        }
+                    });
+                });
             }
         }
 
